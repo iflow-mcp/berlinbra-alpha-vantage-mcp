@@ -12,6 +12,8 @@ A Model Context Protocol (MCP) server that provides real-time access to financia
 - Real-time cryptocurrency exchange rates with bid/ask prices
 - Daily, weekly, and monthly cryptocurrency time series data
 - Historical options chain data with advanced filtering and sorting
+- Upcoming earnings calendar with customizable time horizons
+- Historical earnings data with annual and quarterly reports
 - Built-in error handling and rate limit management
 
 ## Installation
@@ -110,7 +112,7 @@ with inspector
 
 ## Available Tools
 
-The server implements eight tools:
+The server implements ten tools:
 - `get-stock-quote`: Get the latest stock quote for a specific company
 - `get-company-info`: Get stock-related information for a specific company
 - `get-crypto-exchange-rate`: Get current cryptocurrency exchange rates
@@ -119,6 +121,8 @@ The server implements eight tools:
 - `get-crypto-daily`: Get daily time series data for a cryptocurrency
 - `get-crypto-weekly`: Get weekly time series data for a cryptocurrency
 - `get-crypto-monthly`: Get monthly time series data for a cryptocurrency
+- `get-earnings-calendar`: Get upcoming earnings calendar data for companies
+- `get-historical-earnings`: Get historical earnings data for a specific company
 
 ### get-stock-quote
 
@@ -418,6 +422,105 @@ High: 180.00000000 USD
 Low: 112.00000000 USD
 Close: 124.54000000 USD
 Volume: 42360395.75443056
+---
+```
+
+### get-earnings-calendar
+
+Retrieves upcoming earnings calendar data for companies with customizable time horizons.
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Optional: Stock symbol to filter earnings for a specific company (e.g., AAPL, MSFT, IBM)"
+    },
+    "horizon": {
+        "type": "string",
+        "description": "Optional: Time horizon for earnings data (3month, 6month, or 12month)",
+        "enum": ["3month", "6month", "12month"],
+        "default": "12month"
+    },
+    "limit": {
+        "type": "integer",
+        "description": "Optional: Number of earnings entries to return (default: 20)",
+        "default": 20,
+        "minimum": 1
+    }
+}
+```
+
+**Example Response:**
+```
+Earnings calendar for MSTR (12month):
+
+Upcoming Earnings Calendar:
+
+Company: MSTR - MicroStrategy Inc
+Report Date: 2025-02-06
+Fiscal Date End: 2024-12-31
+Estimate: $1.25 USD
+---
+Company: MSTR - MicroStrategy Inc
+Report Date: 2025-05-08
+Fiscal Date End: 2025-03-31
+Estimate: $1.30 USD
+---
+```
+
+### get-historical-earnings
+
+Retrieves historical earnings data for a specific company, including both annual and quarterly reports.
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Stock symbol for the company (e.g., AAPL, MSFT, IBM)"
+    },
+    "limit_annual": {
+        "type": "integer",
+        "description": "Optional: Number of annual earnings to return (default: 5)",
+        "default": 5,
+        "minimum": 1
+    },
+    "limit_quarterly": {
+        "type": "integer",
+        "description": "Optional: Number of quarterly earnings to return (default: 8)",
+        "default": 8,
+        "minimum": 1
+    }
+}
+```
+
+**Example Response:**
+```
+Historical Earnings for MSTR:
+
+=== ANNUAL EARNINGS ===
+Fiscal Year End: 2023-12-31
+Reported EPS: $5.40
+---
+Fiscal Year End: 2022-12-31
+Reported EPS: $-9.98
+---
+
+=== QUARTERLY EARNINGS ===
+Fiscal Quarter End: 2024-09-30
+Reported Date: 2024-10-30
+Reported EPS: $1.10
+Estimated EPS: $0.98
+Surprise: +$0.12 (+12.24%)
+Report Time: post-market
+---
+Fiscal Quarter End: 2024-06-30
+Reported Date: 2024-08-01
+Reported EPS: $1.05
+Estimated EPS: $0.92
+Surprise: +$0.13 (+14.13%)
+Report Time: post-market
 ---
 ```
 
