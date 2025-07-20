@@ -16,6 +16,8 @@ from .tools import (
     format_time_series,
     format_historical_options,
     format_crypto_time_series,
+    format_earnings_calendar,
+    format_historical_earnings,
     ALPHA_VANTAGE_BASE,
     API_KEY
 )
@@ -202,6 +204,58 @@ async def handle_list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "Market currency (e.g., USD, EUR)",
                         "default": "USD"
+                    }
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-earnings-calendar",
+            description="Get upcoming earnings calendar data for companies",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Optional: Stock symbol to filter earnings for a specific company (e.g., AAPL, MSFT, IBM)"
+                    },
+                    "horizon": {
+                        "type": "string",
+                        "description": "Optional: Time horizon for earnings data (3month, 6month, or 12month)",
+                        "enum": ["3month", "6month", "12month"],
+                        "default": "12month"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Optional: Number of earnings entries to return (default: 20)",
+                        "default": 20,
+                        "minimum": 1
+                    }
+                },
+                "required": [],
+            },
+        ),
+        types.Tool(
+            name="get-historical-earnings",
+            description="Get historical earnings data for a specific company",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol for the company (e.g., AAPL, MSFT, IBM)"
+                    },
+                    "limit_annual": {
+                        "type": "integer",
+                        "description": "Optional: Number of annual earnings to return (default: 5)",
+                        "default": 5,
+                        "minimum": 1
+                    },
+                    "limit_quarterly": {
+                        "type": "integer",
+                        "description": "Optional: Number of quarterly earnings to return (default: 8)",
+                        "default": 8,
+                        "minimum": 1
                     }
                 },
                 "required": ["symbol"],
@@ -428,6 +482,61 @@ async def handle_call_tool(
             data_text = f"Monthly cryptocurrency time series for {symbol} in {market}:\n\n{formatted_data}"
 
             return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-earnings-calendar":
+        symbol = arguments.get("symbol")
+        horizon = arguments.get("horizon", "12month")
+        limit = arguments.get("limit", 20)
+        
+        async with httpx.AsyncClient() as client:
+            params = {"horizon": horizon}
+            if symbol:
+                params["symbol"] = symbol.upper()
+                
+            earnings_data = await make_alpha_request(
+                client,
+                "EARNINGS_CALENDAR",
+                None,
+                params
+            )
+
+            if isinstance(earnings_data, str):
+                return [types.TextContent(type="text", text=f"Error: {earnings_data}")]
+
+            formatted_earnings = format_earnings_calendar(earnings_data, limit)
+            earnings_text = f"Earnings calendar"
+            if symbol:
+                earnings_text += f" for {symbol.upper()}"
+            if horizon:
+                earnings_text += f" ({horizon})"
+            earnings_text += f":\n\n{formatted_earnings}"
+
+            return [types.TextContent(type="text", text=earnings_text)]
+            
+    elif name == "get-historical-earnings":
+        symbol = arguments.get("symbol")
+        limit_annual = arguments.get("limit_annual", 5)
+        limit_quarterly = arguments.get("limit_quarterly", 8)
+        
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            earnings_data = await make_alpha_request(
+                client,
+                "EARNINGS",
+                symbol
+            )
+
+            if isinstance(earnings_data, str):
+                return [types.TextContent(type="text", text=f"Error: {earnings_data}")]
+
+            formatted_earnings = format_historical_earnings(earnings_data, limit_annual, limit_quarterly)
+            earnings_text = f"Historical earnings for {symbol}:\n\n{formatted_earnings}"
+
+            return [types.TextContent(type="text", text=earnings_text)]
     else:
         return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 

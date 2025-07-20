@@ -5,9 +5,11 @@ This module contains utility functions for making requests to the Alpha Vantage 
 and formatting the responses.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 import httpx
 import os
+import csv
+import io
 
 ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query"
 API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
@@ -50,7 +52,25 @@ async def make_alpha_request(client: httpx.AsyncClient, function: str, symbol: O
 
         response.raise_for_status()
 
-        data = response.json()
+        # Check if response is empty
+        if not response.text.strip():
+            return "Empty response received from Alpha Vantage API"
+        
+        # Special handling for EARNINGS_CALENDAR which returns CSV by default
+        if function == "EARNINGS_CALENDAR":
+            try:
+                # Parse CSV response
+                csv_reader = csv.DictReader(io.StringIO(response.text))
+                earnings_list = list(csv_reader)
+                return earnings_list
+            except Exception as e:
+                return f"Error parsing CSV response: {str(e)}"
+        
+        # For other functions, expect JSON
+        try:
+            data = response.json()
+        except ValueError as e:
+            return f"Invalid JSON response from Alpha Vantage API: {response.text[:200]}"
 
         # Check for Alpha Vantage specific error messages
         if "Error Message" in data:
@@ -256,6 +276,144 @@ def format_crypto_time_series(time_series_data: Dict[str, Any], series_type: str
         return "\n".join(formatted_data)
     except Exception as e:
         return f"Error formatting cryptocurrency time series data: {str(e)}"
+
+
+def format_earnings_calendar(earnings_data: List[Dict[str, str]], limit: int = 20) -> str:
+    """Format earnings calendar data into a concise string.
+    
+    Args:
+        earnings_data: List of earnings records from the Alpha Vantage EARNINGS_CALENDAR endpoint (CSV format)
+        limit: Number of earnings entries to display (default: 20)
+        
+    Returns:
+        A formatted string containing the earnings calendar information
+    """
+    try:
+        if not isinstance(earnings_data, list):
+            return f"Unexpected data format: {type(earnings_data)}"
+            
+        if not earnings_data:
+            return "No earnings calendar data available"
+
+        formatted = ["Upcoming Earnings Calendar:\n\n"]
+        
+        # Display limited number of entries
+        display_earnings = earnings_data[:limit] if limit > 0 else earnings_data
+        
+        for earning in display_earnings:
+            symbol = earning.get('symbol', 'N/A')
+            name = earning.get('name', 'N/A')
+            report_date = earning.get('reportDate', 'N/A')
+            fiscal_date = earning.get('fiscalDateEnding', 'N/A')
+            estimate = earning.get('estimate', 'N/A')
+            currency = earning.get('currency', 'N/A')
+            
+            formatted.append(f"Company: {symbol} - {name}\n")
+            formatted.append(f"Report Date: {report_date}\n")
+            formatted.append(f"Fiscal Date End: {fiscal_date}\n")
+            
+            # Format estimate nicely
+            if estimate and estimate != 'N/A' and estimate.strip():
+                try:
+                    est_float = float(estimate)
+                    formatted.append(f"Estimate: ${est_float:.2f} {currency}\n")
+                except ValueError:
+                    formatted.append(f"Estimate: {estimate} {currency}\n")
+            else:
+                formatted.append(f"Estimate: Not available\n")
+            
+            formatted.append("---\n")
+        
+        if limit > 0 and len(earnings_data) > limit:
+            formatted.append(f"\n... and {len(earnings_data) - limit} more earnings reports")
+            
+        return "".join(formatted)
+    except Exception as e:
+        return f"Error formatting earnings calendar data: {str(e)}"
+
+
+def format_historical_earnings(earnings_data: Dict[str, Any], limit_annual: int = 5, limit_quarterly: int = 8) -> str:
+    """Format historical earnings data into a concise string.
+    
+    Args:
+        earnings_data: The response data from the Alpha Vantage EARNINGS endpoint
+        limit_annual: Number of annual earnings to display (default: 5)
+        limit_quarterly: Number of quarterly earnings to display (default: 8)
+        
+    Returns:
+        A formatted string containing the historical earnings information
+    """
+    try:
+        if "Error Message" in earnings_data:
+            return f"Error: {earnings_data['Error Message']}"
+
+        symbol = earnings_data.get("symbol", "Unknown")
+        formatted = [f"Historical Earnings for {symbol}:\n\n"]
+        
+        # Format Annual Earnings
+        annual_earnings = earnings_data.get("annualEarnings", [])
+        if annual_earnings:
+            formatted.append("=== ANNUAL EARNINGS ===\n")
+            display_annual = annual_earnings[:limit_annual] if limit_annual > 0 else annual_earnings
+            
+            for earning in display_annual:
+                fiscal_date = earning.get("fiscalDateEnding", "N/A")
+                reported_eps = earning.get("reportedEPS", "N/A")
+                
+                formatted.append(f"Fiscal Year End: {fiscal_date}\n")
+                formatted.append(f"Reported EPS: ${reported_eps}\n")
+                formatted.append("---\n")
+            
+            if limit_annual > 0 and len(annual_earnings) > limit_annual:
+                formatted.append(f"... and {len(annual_earnings) - limit_annual} more annual reports\n")
+            formatted.append("\n")
+        
+        # Format Quarterly Earnings
+        quarterly_earnings = earnings_data.get("quarterlyEarnings", [])
+        if quarterly_earnings:
+            formatted.append("=== QUARTERLY EARNINGS ===\n")
+            display_quarterly = quarterly_earnings[:limit_quarterly] if limit_quarterly > 0 else quarterly_earnings
+            
+            for earning in display_quarterly:
+                fiscal_date = earning.get("fiscalDateEnding", "N/A")
+                reported_date = earning.get("reportedDate", "N/A")
+                reported_eps = earning.get("reportedEPS", "N/A")
+                estimated_eps = earning.get("estimatedEPS", "N/A")
+                surprise = earning.get("surprise", "N/A")
+                surprise_pct = earning.get("surprisePercentage", "N/A")
+                report_time = earning.get("reportTime", "N/A")
+                
+                formatted.append(f"Fiscal Quarter End: {fiscal_date}\n")
+                formatted.append(f"Reported Date: {reported_date}\n")
+                formatted.append(f"Reported EPS: ${reported_eps}\n")
+                formatted.append(f"Estimated EPS: ${estimated_eps}\n")
+                
+                # Format surprise with proper handling
+                if surprise != "N/A" and surprise_pct != "N/A":
+                    try:
+                        surprise_float = float(surprise)
+                        surprise_pct_float = float(surprise_pct)
+                        if surprise_float >= 0:
+                            formatted.append(f"Surprise: +${surprise_float:.2f} (+{surprise_pct_float:.2f}%)\n")
+                        else:
+                            formatted.append(f"Surprise: ${surprise_float:.2f} ({surprise_pct_float:.2f}%)\n")
+                    except ValueError:
+                        formatted.append(f"Surprise: {surprise} ({surprise_pct}%)\n")
+                else:
+                    formatted.append(f"Surprise: {surprise} ({surprise_pct}%)\n")
+                
+                formatted.append(f"Report Time: {report_time}\n")
+                formatted.append("---\n")
+            
+            if limit_quarterly > 0 and len(quarterly_earnings) > limit_quarterly:
+                formatted.append(f"... and {len(quarterly_earnings) - limit_quarterly} more quarterly reports\n")
+        
+        if not annual_earnings and not quarterly_earnings:
+            formatted.append("No historical earnings data available\n")
+            
+        return "".join(formatted)
+    except Exception as e:
+        return f"Error formatting historical earnings data: {str(e)}"
 
 
 def format_historical_options(options_data: Dict[str, Any], limit: int = 10, sort_by: str = "strike", sort_order: str = "asc") -> str:
