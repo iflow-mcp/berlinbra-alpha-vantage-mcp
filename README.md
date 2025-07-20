@@ -207,7 +207,7 @@ Ask Price: 43522.00000
 
 ### get-time-series
 
-Retrieves daily time series (OHLCV) data.
+Retrieves daily time series (OHLCV) data with optional date filtering.
 
 **Input Schema:**
 ```json
@@ -218,14 +218,31 @@ Retrieves daily time series (OHLCV) data.
     },
     "outputsize": {
         "type": "string",
-        "description": "compact (latest 100 data points) or full (up to 20 years of data)",
+        "description": "compact (latest 100 data points) or full (up to 20 years of data). When start_date or end_date is specified, defaults to 'full'",
         "default": "compact"
+    },
+    "start_date": {
+        "type": "string",
+        "description": "Optional: Start date in YYYY-MM-DD format for filtering results",
+        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+    },
+    "end_date": {
+        "type": "string",
+        "description": "Optional: End date in YYYY-MM-DD format for filtering results",
+        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+    },
+    "limit": {
+        "type": "integer",
+        "description": "Optional: Number of data points to return when no date filtering is applied (default: 5)",
+        "default": 5,
+        "minimum": 1
     }
 }
 ```
-**Example Response:**
+**Example Response (Recent Data):**
 ```
 Time Series Data for AAPL (Last Refreshed: 2024-12-17 16:00:00):
+(Showing 5 most recent data points)
 
 Date: 2024-12-16
 Open: $195.09
@@ -233,6 +250,35 @@ High: $197.68
 Low: $194.83
 Close: $197.57
 Volume: 55,751,011
+---
+Date: 2024-12-13
+Open: $194.50
+High: $196.25
+Low: $193.80
+Close: $195.12
+Volume: 48,320,567
+---
+```
+
+**Example Response (Date Range Filtering):**
+```
+Time Series Data for AAPL (Last Refreshed: 2024-12-17 16:00:00):
+Date Range: 2024-12-01 to 2024-12-07 (5 data points)
+
+Date: 2024-12-06
+Open: $191.25
+High: $193.80
+Low: $190.55
+Close: $192.90
+Volume: 52,145,890
+---
+Date: 2024-12-05
+Open: $189.75
+High: $192.40
+Low: $188.90
+Close: $191.30
+Volume: 47,892,345
+---
 ```
 
 ### get-historical-options

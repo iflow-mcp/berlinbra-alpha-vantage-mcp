@@ -10,6 +10,7 @@ import httpx
 import os
 import csv
 import io
+from datetime import datetime
 
 ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query"
 API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
@@ -170,11 +171,14 @@ def format_crypto_rate(crypto_data: Dict[str, Any]) -> str:
         return f"Error formatting cryptocurrency data: {str(e)}"
 
 
-def format_time_series(time_series_data: Dict[str, Any]) -> str:
-    """Format time series data into a concise string.
+def format_time_series(time_series_data: Dict[str, Any], start_date: Optional[str] = None, end_date: Optional[str] = None, limit: int = 5) -> str:
+    """Format time series data into a concise string with optional date filtering.
     
     Args:
         time_series_data: The response data from the Alpha Vantage TIME_SERIES_DAILY endpoint
+        start_date: Optional start date in YYYY-MM-DD format for filtering
+        end_date: Optional end date in YYYY-MM-DD format for filtering  
+        limit: Number of data points to return when no date filtering is applied
         
     Returns:
         A formatted string containing the time series information
@@ -190,12 +194,59 @@ def format_time_series(time_series_data: Dict[str, Any]) -> str:
         symbol = metadata.get("2. Symbol", "Unknown")
         last_refreshed = metadata.get("3. Last Refreshed", "Unknown")
 
-        # Format the most recent 5 days of data
-        formatted_data = [
-            f"Time Series Data for {symbol} (Last Refreshed: {last_refreshed})\n\n"
-        ]
+        # Filter by date range if specified
+        filtered_data = {}
+        if start_date or end_date:
+            for date_str, values in time_series.items():
+                try:
+                    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                    
+                    # Check start date filter
+                    if start_date:
+                        start_obj = datetime.strptime(start_date, "%Y-%m-%d")
+                        if date_obj < start_obj:
+                            continue
+                    
+                    # Check end date filter
+                    if end_date:
+                        end_obj = datetime.strptime(end_date, "%Y-%m-%d")
+                        if date_obj > end_obj:
+                            continue
+                    
+                    filtered_data[date_str] = values
+                except ValueError:
+                    # Skip invalid date formats
+                    continue
+            
+            # Sort filtered data by date (most recent first)
+            sorted_items = sorted(filtered_data.items(), key=lambda x: x[0], reverse=True)
+        else:
+            # Use original data with limit
+            sorted_items = list(time_series.items())[:limit]
 
-        for date, values in list(time_series.items())[:5]:
+        if not sorted_items:
+            return f"No time series data found for the specified date range"
+
+        # Build header
+        formatted_data = [
+            f"Time Series Data for {symbol} (Last Refreshed: {last_refreshed})\n"
+        ]
+        
+        # Add date range info if filtering was applied
+        if start_date or end_date:
+            date_range = ""
+            if start_date and end_date:
+                date_range = f"Date Range: {start_date} to {end_date}"
+            elif start_date:
+                date_range = f"From: {start_date}"
+            elif end_date:
+                date_range = f"Until: {end_date}"
+            formatted_data.append(f"{date_range} ({len(sorted_items)} data points)\n\n")
+        else:
+            formatted_data.append(f"(Showing {len(sorted_items)} most recent data points)\n\n")
+
+        # Format the data points
+        for date, values in sorted_items:
             formatted_data.append(
                 f"Date: {date}\n"
                 f"Open: ${values.get('1. open', 'N/A')}\n"

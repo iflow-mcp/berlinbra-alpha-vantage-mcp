@@ -83,7 +83,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="get-time-series",
-            description="Get daily time series data for a stock",
+            description="Get daily time series data for a stock with optional date filtering",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -93,9 +93,25 @@ async def handle_list_tools() -> list[types.Tool]:
                     },
                     "outputsize": {
                         "type": "string",
-                        "description": "compact (latest 100 data points) or full (up to 20 years of data)",
+                        "description": "compact (latest 100 data points) or full (up to 20 years of data). When start_date or end_date is specified, defaults to 'full'",
                         "enum": ["compact", "full"],
                         "default": "compact"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Optional: Start date in YYYY-MM-DD format for filtering results",
+                        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Optional: End date in YYYY-MM-DD format for filtering results",
+                        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Optional: Number of data points to return when no date filtering is applied (default: 5)",
+                        "default": 5,
+                        "minimum": 1
                     }
                 },
                 "required": ["symbol"],
@@ -352,7 +368,14 @@ async def handle_call_tool(
             return [types.TextContent(type="text", text="Missing symbol parameter")]
 
         symbol = symbol.upper()
-        outputsize = arguments.get("outputsize", "compact")
+        start_date = arguments.get("start_date")
+        end_date = arguments.get("end_date")
+        limit = arguments.get("limit", 5)
+        
+        # Auto-select outputsize: use 'full' when date filtering is requested
+        outputsize = arguments.get("outputsize")
+        if not outputsize:
+            outputsize = "full" if (start_date or end_date) else "compact"
 
         async with httpx.AsyncClient() as client:
             time_series_data = await make_alpha_request(
@@ -365,7 +388,7 @@ async def handle_call_tool(
             if isinstance(time_series_data, str):
                 return [types.TextContent(type="text", text=f"Error: {time_series_data}")]
 
-            formatted_series = format_time_series(time_series_data)
+            formatted_series = format_time_series(time_series_data, start_date, end_date, limit)
             series_text = f"Time series data for {symbol}:\n\n{formatted_series}"
 
             return [types.TextContent(type="text", text=series_text)]
