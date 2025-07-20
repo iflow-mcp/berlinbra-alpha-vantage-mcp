@@ -519,7 +519,7 @@ Volume: 42360395.75443056
 
 ### get-earnings-calendar
 
-Retrieves upcoming earnings calendar data for companies with customizable time horizons.
+Retrieves upcoming earnings calendar data for companies with customizable time horizons and sorting capabilities.
 
 **Input Schema:**
 ```json
@@ -536,28 +536,73 @@ Retrieves upcoming earnings calendar data for companies with customizable time h
     },
     "limit": {
         "type": "integer",
-        "description": "Optional: Number of earnings entries to return (default: 20)",
-        "default": 20,
+        "description": "Optional: Number of earnings entries to return (default: 100)",
+        "default": 100,
         "minimum": 1
+    },
+    "sort_by": {
+        "type": "string",
+        "description": "Optional: Field to sort by",
+        "enum": ["reportDate", "symbol", "name", "fiscalDateEnding", "estimate"],
+        "default": "reportDate"
+    },
+    "sort_order": {
+        "type": "string",
+        "description": "Optional: Sort order",
+        "enum": ["asc", "desc"],
+        "default": "desc"
     }
 }
 ```
 
-**Example Response:**
+**Example Response (Default - Latest First):**
 ```
-Earnings calendar for MSTR (12month):
+Earnings calendar (12month):
 
-Upcoming Earnings Calendar:
+Upcoming Earnings Calendar (Sorted by reportDate desc):
 
-Company: MSTR - MicroStrategy Inc
-Report Date: 2025-02-06
-Fiscal Date End: 2024-12-31
-Estimate: $1.25 USD
+Company: NVDA - NVIDIA Corp
+Report Date: 2025-08-15
+Fiscal Date End: 2025-07-31
+Estimate: $4.25 USD
+---
+Company: AAPL - Apple Inc
+Report Date: 2025-07-30
+Fiscal Date End: 2025-06-30
+Estimate: $1.85 USD
 ---
 Company: MSTR - MicroStrategy Inc
 Report Date: 2025-05-08
 Fiscal Date End: 2025-03-31
 Estimate: $1.30 USD
+---
+Company: MSTR - MicroStrategy Inc
+Report Date: 2025-02-06
+Fiscal Date End: 2024-12-31
+Estimate: $1.25 USD
+---
+```
+
+**Example Response (Sorted by Symbol):**
+```
+Earnings calendar (12month):
+
+Upcoming Earnings Calendar (Sorted by symbol asc):
+
+Company: AAPL - Apple Inc
+Report Date: 2025-07-30
+Fiscal Date End: 2025-06-30
+Estimate: $1.85 USD
+---
+Company: GOOGL - Alphabet Inc
+Report Date: 2025-04-25
+Fiscal Date End: 2025-03-31
+Estimate: $2.15 USD
+---
+Company: MSTR - MicroStrategy Inc
+Report Date: 2025-02-06
+Fiscal Date End: 2024-12-31
+Estimate: $1.25 USD
 ---
 ```
 

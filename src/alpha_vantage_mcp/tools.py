@@ -329,15 +329,17 @@ def format_crypto_time_series(time_series_data: Dict[str, Any], series_type: str
         return f"Error formatting cryptocurrency time series data: {str(e)}"
 
 
-def format_earnings_calendar(earnings_data: List[Dict[str, str]], limit: int = 20) -> str:
-    """Format earnings calendar data into a concise string.
+def format_earnings_calendar(earnings_data: List[Dict[str, str]], limit: int = 100, sort_by: str = "reportDate", sort_order: str = "desc") -> str:
+    """Format earnings calendar data into a concise string with sorting.
     
     Args:
         earnings_data: List of earnings records from the Alpha Vantage EARNINGS_CALENDAR endpoint (CSV format)
-        limit: Number of earnings entries to display (default: 20)
+        limit: Number of earnings entries to display (default: 100)
+        sort_by: Field to sort by (default: reportDate)
+        sort_order: Sort order asc or desc (default: desc)
         
     Returns:
-        A formatted string containing the earnings calendar information
+        A formatted string containing the sorted earnings calendar information
     """
     try:
         if not isinstance(earnings_data, list):
@@ -346,10 +348,45 @@ def format_earnings_calendar(earnings_data: List[Dict[str, str]], limit: int = 2
         if not earnings_data:
             return "No earnings calendar data available"
 
-        formatted = ["Upcoming Earnings Calendar:\n\n"]
+        # Sort the earnings data
+        def get_sort_key(earning):
+            value = earning.get(sort_by, "")
+            
+            # Special handling for dates to ensure proper chronological sorting
+            if sort_by in ["reportDate", "fiscalDateEnding"]:
+                try:
+                    # Convert date string to datetime for proper sorting
+                    if value:
+                        return datetime.strptime(value, "%Y-%m-%d")
+                    else:
+                        return datetime.min  # Put empty dates at the beginning
+                except ValueError:
+                    return datetime.min
+            
+            # Special handling for numeric fields like estimate
+            elif sort_by == "estimate":
+                try:
+                    if value and value.strip():
+                        return float(value)
+                    else:
+                        return 0.0
+                except ValueError:
+                    return 0.0
+            
+            # For text fields (symbol, name), return as-is for alphabetical sorting
+            else:
+                return str(value).upper()
+
+        sorted_earnings = sorted(
+            earnings_data,
+            key=get_sort_key,
+            reverse=(sort_order == "desc")
+        )
+
+        formatted = [f"Upcoming Earnings Calendar (Sorted by {sort_by} {sort_order}):\n\n"]
         
         # Display limited number of entries
-        display_earnings = earnings_data[:limit] if limit > 0 else earnings_data
+        display_earnings = sorted_earnings[:limit] if limit > 0 else sorted_earnings
         
         for earning in display_earnings:
             symbol = earning.get('symbol', 'N/A')

@@ -251,7 +251,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="get-earnings-calendar",
-            description="Get upcoming earnings calendar data for companies",
+            description="Get upcoming earnings calendar data for companies with sorting capabilities",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -267,9 +267,21 @@ async def handle_list_tools() -> list[types.Tool]:
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Optional: Number of earnings entries to return (default: 20)",
-                        "default": 20,
+                        "description": "Optional: Number of earnings entries to return (default: 100)",
+                        "default": 100,
                         "minimum": 1
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "description": "Optional: Field to sort by",
+                        "enum": ["reportDate", "symbol", "name", "fiscalDateEnding", "estimate"],
+                        "default": "reportDate"
+                    },
+                    "sort_order": {
+                        "type": "string",
+                        "description": "Optional: Sort order",
+                        "enum": ["asc", "desc"],
+                        "default": "desc"
                     }
                 },
                 "required": [],
@@ -548,7 +560,9 @@ async def handle_call_tool(
     elif name == "get-earnings-calendar":
         symbol = arguments.get("symbol")
         horizon = arguments.get("horizon", "12month")
-        limit = arguments.get("limit", 20)
+        limit = arguments.get("limit", 100)
+        sort_by = arguments.get("sort_by", "reportDate")
+        sort_order = arguments.get("sort_order", "desc")
         
         async with httpx.AsyncClient() as client:
             params = {"horizon": horizon}
@@ -565,7 +579,7 @@ async def handle_call_tool(
             if isinstance(earnings_data, str):
                 return [types.TextContent(type="text", text=f"Error: {earnings_data}")]
 
-            formatted_earnings = format_earnings_calendar(earnings_data, limit)
+            formatted_earnings = format_earnings_calendar(earnings_data, limit, sort_by, sort_order)
             earnings_text = f"Earnings calendar"
             if symbol:
                 earnings_text += f" for {symbol.upper()}"
