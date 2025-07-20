@@ -119,7 +119,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="get-historical-options",
-            description="Get historical options chain data for a stock with sorting capabilities",
+            description="Get historical options chain data for a stock with advanced filtering and sorting capabilities",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -132,9 +132,33 @@ async def handle_list_tools() -> list[types.Tool]:
                         "description": "Optional: Trading date in YYYY-MM-DD format (defaults to previous trading day, must be after 2008-01-01)",
                         "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
                     },
+                    "expiry_date": {
+                        "type": "string",
+                        "description": "Optional: Filter by expiration date in YYYY-MM-DD format",
+                        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+                    },
+                    "min_strike": {
+                        "type": "number",
+                        "description": "Optional: Minimum strike price filter (e.g., 100.00)",
+                        "minimum": 0
+                    },
+                    "max_strike": {
+                        "type": "number",
+                        "description": "Optional: Maximum strike price filter (e.g., 200.00)",
+                        "minimum": 0
+                    },
+                    "contract_id": {
+                        "type": "string",
+                        "description": "Optional: Filter by specific contract ID (e.g., MSTR260116C00000500)"
+                    },
+                    "contract_type": {
+                        "type": "string",
+                        "description": "Optional: Filter by contract type (call or put)",
+                        "enum": ["call", "put", "C", "P"]
+                    },
                     "limit": {
                         "type": "integer",
-                        "description": "Optional: Number of contracts to return (default: 10, use -1 for all contracts)",
+                        "description": "Optional: Number of contracts to return after filtering (default: 10, use -1 for all contracts)",
                         "default": 10,
                         "minimum": -1
                     },
@@ -396,6 +420,11 @@ async def handle_call_tool(
     elif name == "get-historical-options":
         symbol = arguments.get("symbol")
         date = arguments.get("date")
+        expiry_date = arguments.get("expiry_date")
+        min_strike = arguments.get("min_strike")
+        max_strike = arguments.get("max_strike")
+        contract_id = arguments.get("contract_id")
+        contract_type = arguments.get("contract_type")
         limit = arguments.get("limit", 10)
         sort_by = arguments.get("sort_by", "strike")
         sort_order = arguments.get("sort_order", "asc")
@@ -420,7 +449,17 @@ async def handle_call_tool(
             if isinstance(options_data, str):
                 return [types.TextContent(type="text", text=f"Error: {options_data}")]
 
-            formatted_options = format_historical_options(options_data, limit, sort_by, sort_order)
+            formatted_options = format_historical_options(
+                options_data, 
+                limit, 
+                sort_by, 
+                sort_order,
+                expiry_date,
+                min_strike,
+                max_strike,
+                contract_id,
+                contract_type
+            )
             options_text = f"Historical options data for {symbol}"
             if date:
                 options_text += f" on {date}"

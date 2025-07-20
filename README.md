@@ -117,7 +117,7 @@ The server implements ten tools:
 - `get-company-info`: Get stock-related information for a specific company
 - `get-crypto-exchange-rate`: Get current cryptocurrency exchange rates
 - `get-time-series`: Get historical daily price data for a stock
-- `get-historical-options`: Get historical options chain data with sorting capabilities
+- `get-historical-options`: Get historical options chain data with advanced filtering and sorting capabilities
 - `get-crypto-daily`: Get daily time series data for a cryptocurrency
 - `get-crypto-weekly`: Get weekly time series data for a cryptocurrency
 - `get-crypto-monthly`: Get monthly time series data for a cryptocurrency
@@ -283,7 +283,7 @@ Volume: 47,892,345
 
 ### get-historical-options
 
-Retrieves historical options chain data with advanced sorting and filtering capabilities.
+Retrieves historical options chain data with advanced filtering and sorting capabilities to find specific contracts.
 
 **Input Schema:**
 ```json
@@ -297,9 +297,33 @@ Retrieves historical options chain data with advanced sorting and filtering capa
         "description": "Optional: Trading date in YYYY-MM-DD format (defaults to previous trading day, must be after 2008-01-01)",
         "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
     },
+    "expiry_date": {
+        "type": "string",
+        "description": "Optional: Filter by expiration date in YYYY-MM-DD format",
+        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+    },
+    "min_strike": {
+        "type": "number",
+        "description": "Optional: Minimum strike price filter (e.g., 100.00)",
+        "minimum": 0
+    },
+    "max_strike": {
+        "type": "number",
+        "description": "Optional: Maximum strike price filter (e.g., 200.00)",
+        "minimum": 0
+    },
+    "contract_id": {
+        "type": "string",
+        "description": "Optional: Filter by specific contract ID (e.g., MSTR260116C00000500)"
+    },
+    "contract_type": {
+        "type": "string",
+        "description": "Optional: Filter by contract type (call or put)",
+        "enum": ["call", "put", "C", "P"]
+    },
     "limit": {
         "type": "integer",
-        "description": "Optional: Number of contracts to return (default: 10, use -1 for all contracts)",
+        "description": "Optional: Number of contracts to return after filtering (default: 10, use -1 for all contracts)",
         "default": 10,
         "minimum": -1
     },
@@ -318,13 +342,17 @@ Retrieves historical options chain data with advanced sorting and filtering capa
 }
 ```
 
-**Example Response:**
+**Example Response (Basic):**
 ```
 Historical Options Data for AAPL (2024-02-20):
+Status: success
+Found 156 contracts, sorted by: strike (asc)
 
-Contract 1:
-Strike: $190.00
+Contract Details:
+Contract ID: AAPL240315C00190000
 Expiration: 2024-03-15
+Strike: $190.00
+Type: call
 Last: $8.45
 Bid: $8.40
 Ask: $8.50
@@ -337,9 +365,27 @@ Greeks:
   Theta: -0.15
   Vega: 0.30
   Rho: 0.25
+---
+```
 
-Contract 2:
-...
+**Example Response (Filtered):**
+```
+Historical Options Data for MSTR (2024-02-20):
+Status: success
+Filters: Expiry: 2026-01-16, Strike: min $400 - max $600, Type: call
+Found 3 contracts, sorted by: strike (asc)
+
+Contract Details:
+Contract ID: MSTR260116C00000500
+Expiration: 2026-01-16
+Strike: $500.00
+Type: call
+Last: $125.30
+Bid: $124.50
+Ask: $126.10
+Volume: 89
+Open Interest: 1234
+---
 ```
 
 ### get-crypto-daily

@@ -467,17 +467,32 @@ def format_historical_earnings(earnings_data: Dict[str, Any], limit_annual: int 
         return f"Error formatting historical earnings data: {str(e)}"
 
 
-def format_historical_options(options_data: Dict[str, Any], limit: int = 10, sort_by: str = "strike", sort_order: str = "asc") -> str:
-    """Format historical options chain data into a concise string with sorting.
+def format_historical_options(
+    options_data: Dict[str, Any], 
+    limit: int = 10, 
+    sort_by: str = "strike", 
+    sort_order: str = "asc",
+    expiry_date: Optional[str] = None,
+    min_strike: Optional[float] = None,
+    max_strike: Optional[float] = None,
+    contract_id: Optional[str] = None,
+    contract_type: Optional[str] = None
+) -> str:
+    """Format historical options chain data into a concise string with advanced filtering and sorting.
     
     Args:
         options_data: The response data from the Alpha Vantage HISTORICAL_OPTIONS endpoint
-        limit: Number of contracts to return (-1 for all)
+        limit: Number of contracts to return after filtering (-1 for all)
         sort_by: Field to sort by
         sort_order: Sort order (asc or desc)
+        expiry_date: Optional expiration date filter (YYYY-MM-DD)
+        min_strike: Optional minimum strike price filter
+        max_strike: Optional maximum strike price filter
+        contract_id: Optional specific contract ID filter
+        contract_type: Optional contract type filter (call/put/C/P)
         
     Returns:
-        A formatted string containing the historical options information
+        A formatted string containing the filtered and sorted historical options information
     """
     try:
         if "Error Message" in options_data:
@@ -488,11 +503,90 @@ def format_historical_options(options_data: Dict[str, Any], limit: int = 10, sor
         if not options_chain:
             return "No options data available in the response"
 
+        # Apply filters
+        filtered_chain = []
+        for contract in options_chain:
+            # Contract ID filter (exact match)
+            if contract_id and contract.get('contractID', '') != contract_id:
+                continue
+            
+            # Expiry date filter
+            if expiry_date:
+                contract_expiry = contract.get('expiration', '')
+                if contract_expiry != expiry_date:
+                    continue
+            
+            # Strike price filters
+            if min_strike is not None or max_strike is not None:
+                try:
+                    strike_str = str(contract.get('strike', '0')).replace('$', '').strip()
+                    if strike_str:
+                        strike_price = float(strike_str)
+                        if min_strike is not None and strike_price < min_strike:
+                            continue
+                        if max_strike is not None and strike_price > max_strike:
+                            continue
+                except (ValueError, TypeError):
+                    continue
+            
+            # Contract type filter
+            if contract_type:
+                contract_type_norm = contract_type.upper()
+                # Handle both full names and single letters
+                if contract_type_norm in ['CALL', 'C']:
+                    expected_types = ['call', 'C', 'CALL']
+                elif contract_type_norm in ['PUT', 'P']:
+                    expected_types = ['put', 'P', 'PUT']
+                else:
+                    expected_types = [contract_type]
+                
+                actual_type = contract.get('type', '')
+                if actual_type not in expected_types:
+                    continue
+            
+            filtered_chain.append(contract)
+
+        if not filtered_chain:
+            filters_applied = []
+            if contract_id:
+                filters_applied.append(f"contract_id={contract_id}")
+            if expiry_date:
+                filters_applied.append(f"expiry={expiry_date}")
+            if min_strike is not None:
+                filters_applied.append(f"min_strike={min_strike}")
+            if max_strike is not None:
+                filters_applied.append(f"max_strike={max_strike}")
+            if contract_type:
+                filters_applied.append(f"type={contract_type}")
+            
+            filter_text = ", ".join(filters_applied) if filters_applied else "applied"
+            return f"No options contracts found matching the specified filters: {filter_text}"
+
         formatted = [
-            f"Historical Options Data:\n",
+            f"Historical Options Data (Filtered):\n",
             f"Status: {options_data.get('message', 'N/A')}\n",
-            f"Sorted by: {sort_by} ({sort_order})\n\n"
         ]
+        
+        # Add filter summary
+        filters_applied = []
+        if contract_id:
+            filters_applied.append(f"Contract ID: {contract_id}")
+        if expiry_date:
+            filters_applied.append(f"Expiry: {expiry_date}")
+        if min_strike is not None or max_strike is not None:
+            strike_range = []
+            if min_strike is not None:
+                strike_range.append(f"min ${min_strike}")
+            if max_strike is not None:
+                strike_range.append(f"max ${max_strike}")
+            filters_applied.append(f"Strike: {' - '.join(strike_range)}")
+        if contract_type:
+            filters_applied.append(f"Type: {contract_type}")
+        
+        if filters_applied:
+            formatted.append(f"Filters: {', '.join(filters_applied)}\n")
+        
+        formatted.append(f"Found {len(filtered_chain)} contracts, sorted by: {sort_by} ({sort_order})\n\n")
 
         # Convert string values to float for numeric sorting
         def get_sort_key(contract):
@@ -505,9 +599,9 @@ def format_historical_options(options_data: Dict[str, Any], limit: int = 10, sor
             except (ValueError, TypeError):
                 return value
 
-        # Sort the options chain
+        # Sort the filtered chain
         sorted_chain = sorted(
-            options_chain,
+            filtered_chain,
             key=get_sort_key,
             reverse=(sort_order == "desc")
         )
