@@ -31,19 +31,24 @@ The Alpha Vantage MCP Server is a Model Context Protocol (MCP) implementation th
    - Built-in error handling for API failures
    - Rate limit management and timeout handling
    - Comprehensive error messages
+   - **CRITICAL**: Never use placeholder data in responses - always handle errors properly and transparently
 
 ## Available Tools
 
-The server implements 8 MCP tools:
+The server implements 12 MCP tools:
 
 1. **get-stock-quote** - Current stock quote information
 2. **get-company-info** - Detailed company overview data
 3. **get-crypto-exchange-rate** - Cryptocurrency exchange rates
 4. **get-time-series** - Historical daily stock price data
-5. **get-historical-options** - Options chain data with sorting
-6. **get-crypto-daily** - Daily cryptocurrency time series
-7. **get-crypto-weekly** - Weekly cryptocurrency time series
-8. **get-crypto-monthly** - Monthly cryptocurrency time series
+5. **get-realtime-options** - Real-time options chain data (premium required)
+6. **get-historical-options** - Options chain data with sorting
+7. **get-etf-profile** - Comprehensive ETF profile with holdings and sector allocation
+8. **get-crypto-daily** - Daily cryptocurrency time series
+9. **get-crypto-weekly** - Weekly cryptocurrency time series
+10. **get-crypto-monthly** - Monthly cryptocurrency time series
+11. **get-earnings-calendar** - Upcoming earnings calendar data
+12. **get-historical-earnings** - Historical earnings data
 
 ## Smithery MCP Integration
 
@@ -94,12 +99,19 @@ npx -y @smithery/cli install @berlinbra/alpha-vantage-mcp --client claude
 
 ### Supported API Functions
 
+**Free Tier Compatible:**
 - `GLOBAL_QUOTE` - Stock quotes
 - `OVERVIEW` - Company information  
 - `CURRENCY_EXCHANGE_RATE` - Crypto exchange rates
 - `TIME_SERIES_DAILY` - Historical stock data
 - `HISTORICAL_OPTIONS` - Options chain data
+- `ETF_PROFILE` - ETF profile data with holdings and sectors
+- `EARNINGS_CALENDAR` - Upcoming earnings data
+- `EARNINGS` - Historical earnings data
 - `DIGITAL_CURRENCY_DAILY/WEEKLY/MONTHLY` - Crypto time series
+
+**Premium Subscription Required:**
+- `REALTIME_OPTIONS` - Real-time options chain data (returns demo data with free API keys)
 
 ## Development Commands
 
@@ -127,6 +139,31 @@ uv install -e .
 
 - [berlinbra](https://github.com/berlinbra) - Primary maintainer
 - [zzulanas](https://github.com/zzulanas) - Contributor
+
+## Error Handling Guidelines
+
+### Core Principles
+
+1. **No Placeholder Data**: Under no circumstances should the server return placeholder or demo data as if it were real market data
+2. **Transparent Error Reporting**: All API errors, rate limits, and access issues must be clearly communicated to users
+3. **Proper Error Detection**: The server must detect and flag demo/placeholder responses from the API
+4. **User Education**: Error messages should help users understand API limitations and subscription requirements
+
+### Common Error Scenarios
+
+- **Rate Limiting**: Alpha Vantage free tier has request limits
+- **Premium Features**: Some endpoints (like realtime options) require paid subscriptions
+- **API Key Issues**: Invalid or expired API keys
+- **Demo Data**: Alpha Vantage may return placeholder data for demo purposes
+- **Network Issues**: Connection timeouts and service unavailability
+
+### Implementation Requirements
+
+All formatting functions in `tools.py` must:
+- Detect placeholder/demo data patterns (e.g., "XXYYZZ" symbols, "2099-99-99" dates)
+- Return clear error messages instead of formatting fake data
+- Provide guidance on resolving access issues
+- Log error patterns for debugging
 
 ## License
 

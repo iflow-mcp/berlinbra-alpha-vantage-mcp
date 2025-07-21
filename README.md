@@ -11,7 +11,9 @@ A Model Context Protocol (MCP) server that provides real-time access to financia
 - Detailed company information including sector, industry, and market cap
 - Real-time cryptocurrency exchange rates with bid/ask prices
 - Daily, weekly, and monthly cryptocurrency time series data
+- Real-time options chain data with Greeks and implied volatility
 - Historical options chain data with advanced filtering and sorting
+- Comprehensive ETF profile data with holdings, sector allocation, and key metrics
 - Upcoming earnings calendar with customizable time horizons
 - Historical earnings data with annual and quarterly reports
 - Built-in error handling and rate limit management
@@ -112,12 +114,14 @@ with inspector
 
 ## Available Tools
 
-The server implements ten tools:
+The server implements twelve tools:
 - `get-stock-quote`: Get the latest stock quote for a specific company
 - `get-company-info`: Get stock-related information for a specific company
 - `get-crypto-exchange-rate`: Get current cryptocurrency exchange rates
 - `get-time-series`: Get historical daily price data for a stock
+- `get-realtime-options`: Get real-time options chain data with Greeks and implied volatility
 - `get-historical-options`: Get historical options chain data with advanced filtering and sorting capabilities
+- `get-etf-profile`: Get comprehensive ETF profile information including holdings and sector allocation
 - `get-crypto-daily`: Get daily time series data for a cryptocurrency
 - `get-crypto-weekly`: Get weekly time series data for a cryptocurrency
 - `get-crypto-monthly`: Get monthly time series data for a cryptocurrency
@@ -281,6 +285,75 @@ Volume: 47,892,345
 ---
 ```
 
+### get-realtime-options
+
+Retrieves real-time options chain data for a stock with optional Greeks calculation and contract filtering.
+
+**⚠️ PREMIUM SUBSCRIPTION REQUIRED**: This endpoint requires Alpha Vantage Premium with either the 600 requests/minute or 1200 requests/minute plan. The standard 75 requests/minute plan and free accounts will receive placeholder/demo data instead of real market data. For most use cases, consider using `get-historical-options` which works with all API key tiers.
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Stock symbol (e.g., AAPL, MSFT)"
+    },
+    "require_greeks": {
+        "type": "boolean",
+        "description": "Optional: Enable Greeks and implied volatility calculation (default: false)",
+        "default": false
+    },
+    "contract": {
+        "type": "string",
+        "description": "Optional: Specific options contract ID to retrieve"
+    },
+    "datatype": {
+        "type": "string",
+        "description": "Optional: Response format (json or csv, default: json)",
+        "enum": ["json", "csv"],
+        "default": "json"
+    }
+}
+```
+
+**Example Response:**
+```
+Realtime Options Data for AAPL
+Last Updated: 2025-01-21 16:00:00
+
+=== Expiration: 2025-01-24 ===
+
+Strike: $220.0 (CALL)
+Last: $5.25
+Bid: $5.10
+Ask: $5.30
+Volume: 1250
+Open Interest: 8420
+IV: 0.28
+Delta: 0.65
+Gamma: 0.02
+Theta: -0.15
+Vega: 0.45
+Rho: 0.12
+---
+
+Strike: $220.0 (PUT)
+Last: $1.85
+Bid: $1.80
+Ask: $1.90
+Volume: 820
+Open Interest: 5240
+IV: 0.25
+Delta: -0.35
+Gamma: 0.02
+Theta: -0.12
+Vega: 0.42
+Rho: -0.08
+---
+```
+
+**Note**: The above example shows real market data which is only available with Alpha Vantage Premium 600+ requests/minute plans. Users with free accounts or 75 requests/minute plans will see placeholder data (symbols like "XXYYZZ", dates like "2099-99-99") and should use `get-historical-options` instead.
+
 ### get-historical-options
 
 Retrieves historical options chain data with advanced filtering and sorting capabilities to find specific contracts.
@@ -386,6 +459,63 @@ Ask: $126.10
 Volume: 89
 Open Interest: 1234
 ---
+```
+
+### get-etf-profile
+
+Retrieves comprehensive ETF profile information including basic metrics, sector allocation, and top holdings.
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "ETF symbol (e.g., QQQ, SPY, VTI)"
+    }
+}
+```
+
+**Example Response:**
+```
+ETF profile for QQQ:
+
+ETF Profile
+
+Basic Information:
+Net Assets: $352,700,000,000
+Net Expense Ratio: 0.200%
+Portfolio Turnover: 8.0%
+Dividend Yield: 0.50%
+Inception Date: 1999-03-10
+Leveraged: NO
+
+Sector Allocation:
+INFORMATION TECHNOLOGY: 51.9%
+COMMUNICATION SERVICES: 15.4%
+CONSUMER DISCRETIONARY: 12.2%
+CONSUMER STAPLES: 4.8%
+HEALTHCARE: 4.5%
+INDUSTRIALS: 4.4%
+UTILITIES: 1.4%
+MATERIALS: 1.3%
+ENERGY: 0.5%
+FINANCIALS: 0.4%
+
+Top Holdings:
+ 1. NVDA - NVIDIA CORP: 9.80%
+ 2. MSFT - MICROSOFT CORP: 8.85%
+ 3. AAPL - APPLE INC: 7.35%
+ 4. AMZN - AMAZON.COM INC: 5.65%
+ 5. AVGO - BROADCOM INC: 5.14%
+ 6. META - META PLATFORMS INC CLASS A: 3.63%
+ 7. NFLX - NETFLIX INC: 3.10%
+ 8. TSLA - TESLA INC: 2.66%
+ 9. GOOGL - ALPHABET INC CLASS A: 2.49%
+10. COST - COSTCO WHOLESALE CORP: 2.49%
+
+... and 92 more holdings
+
+Total Holdings: 102
 ```
 
 ### get-crypto-daily

@@ -672,3 +672,227 @@ def format_historical_options(
         return "".join(formatted)
     except Exception as e:
         return f"Error formatting options data: {str(e)}"
+
+
+def format_realtime_options(options_data: Dict[str, Any]) -> str:
+    """Format realtime options data into a concise string.
+    
+    Args:
+        options_data: The response data from the Alpha Vantage REALTIME_OPTIONS endpoint
+        
+    Returns:
+        A formatted string containing the realtime options information
+    """
+    try:
+        if "Error Message" in options_data:
+            return f"Error: {options_data['Error Message']}"
+
+        # Get the options contracts list
+        options_list = options_data.get("data", [])
+        if not options_list:
+            return "No realtime options data available in the response"
+
+        # Detect placeholder/demo data patterns
+        def is_placeholder_data(contracts_list):
+            """Detect if the response contains placeholder/demo data"""
+            for contract in contracts_list:
+                symbol = contract.get("symbol", "")
+                contract_id = contract.get("contractID", "")
+                expiration = contract.get("expiration", "")
+                
+                # Check for common placeholder patterns
+                if (symbol == "XXYYZZ" or 
+                    "XXYYZZ" in contract_id or 
+                    expiration == "2099-99-99" or 
+                    "999999" in contract_id):
+                    return True
+            return False
+
+        if is_placeholder_data(options_list):
+            # Check if we're using demo API key
+            api_key_status = "demo API key" if API_KEY == "demo" else f"API key ending in ...{API_KEY[-4:]}" if API_KEY and len(API_KEY) > 4 else "no API key set"
+            
+            return (
+                "❌ PREMIUM FEATURE REQUIRED ❌\n\n"
+                "The realtime options data you requested requires a premium Alpha Vantage subscription.\n"
+                "The API returned placeholder/demo data instead of real market data.\n\n"
+                f"Current API key status: {api_key_status}\n\n"
+                "Possible causes:\n"
+                "1. Using demo API key instead of your actual API key\n"
+                "2. API key is valid but account doesn't have premium access\n"
+                "3. Alpha Vantage returns demo data for free accounts on this endpoint\n\n"
+                "Solutions:\n"
+                "1. Ensure your actual API key is set in ALPHA_VANTAGE_API_KEY environment variable\n"
+                "2. Upgrade to Alpha Vantage Premium (600 or 1200 requests/minute plan)\n"
+                "3. Use 'get-historical-options' tool for historical data (available with free accounts)\n\n"
+                "Learn more: https://www.alphavantage.co/premium/\n\n"
+                "Note: Historical options data may meet your analysis needs and works with free accounts."
+            )
+
+        # Group contracts by expiration date and then by strike price
+        contracts_by_expiry = {}
+        for contract in options_list:
+            expiry = contract.get("expiration", "Unknown")
+            strike = contract.get("strike", "0.00")
+            contract_type = contract.get("type", "unknown")
+            
+            if expiry not in contracts_by_expiry:
+                contracts_by_expiry[expiry] = {}
+            if strike not in contracts_by_expiry[expiry]:
+                contracts_by_expiry[expiry][strike] = {}
+            
+            contracts_by_expiry[expiry][strike][contract_type] = contract
+
+        # Extract symbol from first contract
+        symbol = options_list[0].get("symbol", "Unknown") if options_list else "Unknown"
+        
+        formatted = [
+            f"Realtime Options Data for {symbol}\n",
+            f"Found {len(options_list)} contracts\n\n"
+        ]
+
+        # Sort by expiration dates
+        sorted_expiries = sorted(contracts_by_expiry.keys())
+        
+        for expiry in sorted_expiries:
+            formatted.append(f"=== Expiration: {expiry} ===\n")
+            
+            # Sort strikes numerically
+            strikes = contracts_by_expiry[expiry]
+            sorted_strikes = sorted(strikes.keys(), key=lambda x: float(x) if str(x).replace('.', '').isdigit() else 0)
+            
+            for strike in sorted_strikes:
+                contract_types = strikes[strike]
+                
+                for contract_type in ["call", "put"]:
+                    if contract_type in contract_types:
+                        contract = contract_types[contract_type]
+                        
+                        formatted.append(f"\nStrike: ${strike} ({contract_type.upper()})\n")
+                        formatted.append(f"Contract ID: {contract.get('contractID', 'N/A')}\n")
+                        formatted.append(f"Last: ${contract.get('last', 'N/A')}\n")
+                        formatted.append(f"Mark: ${contract.get('mark', 'N/A')}\n")
+                        formatted.append(f"Bid: ${contract.get('bid', 'N/A')} (Size: {contract.get('bid_size', 'N/A')})\n")
+                        formatted.append(f"Ask: ${contract.get('ask', 'N/A')} (Size: {contract.get('ask_size', 'N/A')})\n")
+                        formatted.append(f"Volume: {contract.get('volume', 'N/A')}\n")
+                        formatted.append(f"Open Interest: {contract.get('open_interest', 'N/A')}\n")
+                        formatted.append(f"Date: {contract.get('date', 'N/A')}\n")
+                        
+                        # Include Greeks if available
+                        if 'implied_volatility' in contract:
+                            formatted.append(f"IV: {contract.get('implied_volatility', 'N/A')}\n")
+                        if 'delta' in contract:
+                            formatted.append(f"Delta: {contract.get('delta', 'N/A')}\n")
+                        if 'gamma' in contract:
+                            formatted.append(f"Gamma: {contract.get('gamma', 'N/A')}\n")
+                        if 'theta' in contract:
+                            formatted.append(f"Theta: {contract.get('theta', 'N/A')}\n")
+                        if 'vega' in contract:
+                            formatted.append(f"Vega: {contract.get('vega', 'N/A')}\n")
+                        if 'rho' in contract:
+                            formatted.append(f"Rho: {contract.get('rho', 'N/A')}\n")
+                        
+                        formatted.append("---\n")
+            
+            formatted.append("\n")
+
+        return "".join(formatted)
+    except Exception as e:
+        return f"Error formatting realtime options data: {str(e)}"
+
+
+def format_etf_profile(etf_data: Dict[str, Any]) -> str:
+    """Format ETF profile data into a concise string.
+    
+    Args:
+        etf_data: The response data from the Alpha Vantage ETF_PROFILE endpoint
+        
+    Returns:
+        A formatted string containing the ETF profile information
+    """
+    try:
+        if "Error Message" in etf_data:
+            return f"Error: {etf_data['Error Message']}"
+
+        if not etf_data:
+            return "No ETF profile data available in the response"
+
+        # Extract basic ETF information
+        net_assets = etf_data.get("net_assets", "N/A")
+        net_expense_ratio = etf_data.get("net_expense_ratio", "N/A")
+        portfolio_turnover = etf_data.get("portfolio_turnover", "N/A")
+        dividend_yield = etf_data.get("dividend_yield", "N/A")
+        inception_date = etf_data.get("inception_date", "N/A")
+        leveraged = etf_data.get("leveraged", "N/A")
+
+        formatted = [
+            f"ETF Profile\n\n",
+            f"Basic Information:\n"
+        ]
+        
+        # Format net assets
+        if net_assets != "N/A" and net_assets.replace('.', '').isdigit():
+            formatted.append(f"Net Assets: ${float(net_assets):,.0f}\n")
+        else:
+            formatted.append(f"Net Assets: {net_assets}\n")
+            
+        # Format net expense ratio
+        if net_expense_ratio != "N/A" and net_expense_ratio.replace('.', '').replace('-', '').isdigit():
+            formatted.append(f"Net Expense Ratio: {float(net_expense_ratio):.3%}\n")
+        else:
+            formatted.append(f"Net Expense Ratio: {net_expense_ratio}\n")
+            
+        # Format portfolio turnover
+        if portfolio_turnover != "N/A" and portfolio_turnover.replace('.', '').replace('-', '').isdigit():
+            formatted.append(f"Portfolio Turnover: {float(portfolio_turnover):.1%}\n")
+        else:
+            formatted.append(f"Portfolio Turnover: {portfolio_turnover}\n")
+            
+        # Format dividend yield
+        if dividend_yield != "N/A" and dividend_yield.replace('.', '').replace('-', '').isdigit():
+            formatted.append(f"Dividend Yield: {float(dividend_yield):.2%}\n")
+        else:
+            formatted.append(f"Dividend Yield: {dividend_yield}\n")
+            
+        formatted.extend([
+            f"Inception Date: {inception_date}\n",
+            f"Leveraged: {leveraged}\n\n"
+        ])
+
+        # Format sectors if available
+        sectors = etf_data.get("sectors", [])
+        if sectors:
+            formatted.append("Sector Allocation:\n")
+            for sector in sectors:
+                sector_name = sector.get("sector", "Unknown")
+                weight = sector.get("weight", "0")
+                try:
+                    weight_pct = float(weight) * 100
+                    formatted.append(f"{sector_name}: {weight_pct:.1f}%\n")
+                except (ValueError, TypeError):
+                    formatted.append(f"{sector_name}: {weight}\n")
+            formatted.append("\n")
+
+        # Format top holdings if available
+        holdings = etf_data.get("holdings", [])
+        if holdings:
+            formatted.append("Top Holdings:\n")
+            # Show top 10 holdings
+            for i, holding in enumerate(holdings[:10]):
+                symbol = holding.get("symbol", "N/A")
+                description = holding.get("description", "N/A")
+                weight = holding.get("weight", "0")
+                
+                try:
+                    weight_pct = float(weight) * 100
+                    formatted.append(f"{i+1:2d}. {symbol} - {description}: {weight_pct:.2f}%\n")
+                except (ValueError, TypeError):
+                    formatted.append(f"{i+1:2d}. {symbol} - {description}: {weight}\n")
+            
+            if len(holdings) > 10:
+                formatted.append(f"\n... and {len(holdings) - 10} more holdings\n")
+            formatted.append(f"\nTotal Holdings: {len(holdings)}\n")
+
+        return "".join(formatted)
+    except Exception as e:
+        return f"Error formatting ETF profile data: {str(e)}"

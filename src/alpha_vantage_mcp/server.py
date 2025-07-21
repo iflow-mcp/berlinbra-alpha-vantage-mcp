@@ -18,6 +18,8 @@ from .tools import (
     format_crypto_time_series,
     format_earnings_calendar,
     format_historical_earnings,
+    format_realtime_options,
+    format_etf_profile,
     ALPHA_VANTAGE_BASE,
     API_KEY
 )
@@ -308,6 +310,49 @@ async def handle_list_tools() -> list[types.Tool]:
                         "description": "Optional: Number of quarterly earnings to return (default: 8)",
                         "default": 8,
                         "minimum": 1
+                    }
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-realtime-options",
+            description="Get realtime options chain data for a stock with optional Greeks and filtering",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol (e.g., AAPL, MSFT)",
+                    },
+                    "require_greeks": {
+                        "type": "boolean",
+                        "description": "Optional: Enable Greeks and implied volatility calculation (default: false)",
+                        "default": False
+                    },
+                    "contract": {
+                        "type": "string",
+                        "description": "Optional: Specific options contract ID to retrieve"
+                    },
+                    "datatype": {
+                        "type": "string",
+                        "description": "Optional: Response format (json or csv, default: json)",
+                        "enum": ["json", "csv"],
+                        "default": "json"
+                    }
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-etf-profile",
+            description="Get comprehensive ETF profile information including holdings, sector allocation, and key metrics",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "ETF symbol (e.g., QQQ, SPY, VTI)",
                     }
                 },
                 "required": ["symbol"],
@@ -613,6 +658,64 @@ async def handle_call_tool(
             earnings_text = f"Historical earnings for {symbol}:\n\n{formatted_earnings}"
 
             return [types.TextContent(type="text", text=earnings_text)]
+            
+    elif name == "get-realtime-options":
+        symbol = arguments.get("symbol")
+        require_greeks = arguments.get("require_greeks", False)
+        contract = arguments.get("contract")
+        datatype = arguments.get("datatype", "json")
+        
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            params = {}
+            if require_greeks:
+                params["require_greeks"] = "true"
+            if contract:
+                params["contract"] = contract
+            if datatype:
+                params["datatype"] = datatype
+
+            options_data = await make_alpha_request(
+                client,
+                "REALTIME_OPTIONS",
+                symbol,
+                params
+            )
+
+            if isinstance(options_data, str):
+                return [types.TextContent(type="text", text=f"Error: {options_data}")]
+
+            formatted_options = format_realtime_options(options_data)
+            options_text = f"Realtime options data for {symbol}:\n\n{formatted_options}"
+
+            return [types.TextContent(type="text", text=options_text)]
+            
+    elif name == "get-etf-profile":
+        symbol = arguments.get("symbol")
+        
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            etf_data = await make_alpha_request(
+                client,
+                "ETF_PROFILE",
+                symbol
+            )
+
+            if isinstance(etf_data, str):
+                return [types.TextContent(type="text", text=f"Error: {etf_data}")]
+
+            formatted_etf = format_etf_profile(etf_data)
+            etf_text = f"ETF profile for {symbol}:\n\n{formatted_etf}"
+
+            return [types.TextContent(type="text", text=etf_text)]
     else:
         return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 
