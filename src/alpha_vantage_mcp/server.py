@@ -16,6 +16,10 @@ from .tools import (
     format_time_series,
     format_historical_options,
     format_crypto_time_series,
+    format_earnings_calendar,
+    format_historical_earnings,
+    format_realtime_options,
+    format_etf_profile,
     ALPHA_VANTAGE_BASE,
     API_KEY
 )
@@ -81,7 +85,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="get-time-series",
-            description="Get daily time series data for a stock",
+            description="Get daily time series data for a stock with optional date filtering",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -91,9 +95,25 @@ async def handle_list_tools() -> list[types.Tool]:
                     },
                     "outputsize": {
                         "type": "string",
-                        "description": "compact (latest 100 data points) or full (up to 20 years of data)",
+                        "description": "compact (latest 100 data points) or full (up to 20 years of data). When start_date or end_date is specified, defaults to 'full'",
                         "enum": ["compact", "full"],
                         "default": "compact"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Optional: Start date in YYYY-MM-DD format for filtering results",
+                        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Optional: End date in YYYY-MM-DD format for filtering results",
+                        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Optional: Number of data points to return when no date filtering is applied (default: 5)",
+                        "default": 5,
+                        "minimum": 1
                     }
                 },
                 "required": ["symbol"],
@@ -101,7 +121,7 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="get-historical-options",
-            description="Get historical options chain data for a stock with sorting capabilities",
+            description="Get historical options chain data for a stock with advanced filtering and sorting capabilities",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -114,9 +134,33 @@ async def handle_list_tools() -> list[types.Tool]:
                         "description": "Optional: Trading date in YYYY-MM-DD format (defaults to previous trading day, must be after 2008-01-01)",
                         "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
                     },
+                    "expiry_date": {
+                        "type": "string",
+                        "description": "Optional: Filter by expiration date in YYYY-MM-DD format",
+                        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+                    },
+                    "min_strike": {
+                        "type": "number",
+                        "description": "Optional: Minimum strike price filter (e.g., 100.00)",
+                        "minimum": 0
+                    },
+                    "max_strike": {
+                        "type": "number",
+                        "description": "Optional: Maximum strike price filter (e.g., 200.00)",
+                        "minimum": 0
+                    },
+                    "contract_id": {
+                        "type": "string",
+                        "description": "Optional: Filter by specific contract ID (e.g., MSTR260116C00000500)"
+                    },
+                    "contract_type": {
+                        "type": "string",
+                        "description": "Optional: Filter by contract type (call or put)",
+                        "enum": ["call", "put", "C", "P"]
+                    },
                     "limit": {
                         "type": "integer",
-                        "description": "Optional: Number of contracts to return (default: 10, use -1 for all contracts)",
+                        "description": "Optional: Number of contracts to return after filtering (default: 10, use -1 for all contracts)",
                         "default": 10,
                         "minimum": -1
                     },
@@ -202,6 +246,113 @@ async def handle_list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "Market currency (e.g., USD, EUR)",
                         "default": "USD"
+                    }
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-earnings-calendar",
+            description="Get upcoming earnings calendar data for companies with sorting capabilities",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Optional: Stock symbol to filter earnings for a specific company (e.g., AAPL, MSFT, IBM)"
+                    },
+                    "horizon": {
+                        "type": "string",
+                        "description": "Optional: Time horizon for earnings data (3month, 6month, or 12month)",
+                        "enum": ["3month", "6month", "12month"],
+                        "default": "12month"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Optional: Number of earnings entries to return (default: 100)",
+                        "default": 100,
+                        "minimum": 1
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "description": "Optional: Field to sort by",
+                        "enum": ["reportDate", "symbol", "name", "fiscalDateEnding", "estimate"],
+                        "default": "reportDate"
+                    },
+                    "sort_order": {
+                        "type": "string",
+                        "description": "Optional: Sort order",
+                        "enum": ["asc", "desc"],
+                        "default": "desc"
+                    }
+                },
+                "required": [],
+            },
+        ),
+        types.Tool(
+            name="get-historical-earnings",
+            description="Get historical earnings data for a specific company",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol for the company (e.g., AAPL, MSFT, IBM)"
+                    },
+                    "limit_annual": {
+                        "type": "integer",
+                        "description": "Optional: Number of annual earnings to return (default: 5)",
+                        "default": 5,
+                        "minimum": 1
+                    },
+                    "limit_quarterly": {
+                        "type": "integer",
+                        "description": "Optional: Number of quarterly earnings to return (default: 8)",
+                        "default": 8,
+                        "minimum": 1
+                    }
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-realtime-options",
+            description="Get realtime options chain data for a stock with optional Greeks and filtering",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol (e.g., AAPL, MSFT)",
+                    },
+                    "require_greeks": {
+                        "type": "boolean",
+                        "description": "Optional: Enable Greeks and implied volatility calculation (default: false)",
+                        "default": False
+                    },
+                    "contract": {
+                        "type": "string",
+                        "description": "Optional: Specific options contract ID to retrieve"
+                    },
+                    "datatype": {
+                        "type": "string",
+                        "description": "Optional: Response format (json or csv, default: json)",
+                        "enum": ["json", "csv"],
+                        "default": "json"
+                    }
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-etf-profile",
+            description="Get comprehensive ETF profile information including holdings, sector allocation, and key metrics",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "ETF symbol (e.g., QQQ, SPY, VTI)",
                     }
                 },
                 "required": ["symbol"],
@@ -298,7 +449,14 @@ async def handle_call_tool(
             return [types.TextContent(type="text", text="Missing symbol parameter")]
 
         symbol = symbol.upper()
-        outputsize = arguments.get("outputsize", "compact")
+        start_date = arguments.get("start_date")
+        end_date = arguments.get("end_date")
+        limit = arguments.get("limit", 5)
+        
+        # Auto-select outputsize: use 'full' when date filtering is requested
+        outputsize = arguments.get("outputsize")
+        if not outputsize:
+            outputsize = "full" if (start_date or end_date) else "compact"
 
         async with httpx.AsyncClient() as client:
             time_series_data = await make_alpha_request(
@@ -311,7 +469,7 @@ async def handle_call_tool(
             if isinstance(time_series_data, str):
                 return [types.TextContent(type="text", text=f"Error: {time_series_data}")]
 
-            formatted_series = format_time_series(time_series_data)
+            formatted_series = format_time_series(time_series_data, start_date, end_date, limit)
             series_text = f"Time series data for {symbol}:\n\n{formatted_series}"
 
             return [types.TextContent(type="text", text=series_text)]
@@ -319,6 +477,11 @@ async def handle_call_tool(
     elif name == "get-historical-options":
         symbol = arguments.get("symbol")
         date = arguments.get("date")
+        expiry_date = arguments.get("expiry_date")
+        min_strike = arguments.get("min_strike")
+        max_strike = arguments.get("max_strike")
+        contract_id = arguments.get("contract_id")
+        contract_type = arguments.get("contract_type")
         limit = arguments.get("limit", 10)
         sort_by = arguments.get("sort_by", "strike")
         sort_order = arguments.get("sort_order", "asc")
@@ -343,7 +506,17 @@ async def handle_call_tool(
             if isinstance(options_data, str):
                 return [types.TextContent(type="text", text=f"Error: {options_data}")]
 
-            formatted_options = format_historical_options(options_data, limit, sort_by, sort_order)
+            formatted_options = format_historical_options(
+                options_data, 
+                limit, 
+                sort_by, 
+                sort_order,
+                expiry_date,
+                min_strike,
+                max_strike,
+                contract_id,
+                contract_type
+            )
             options_text = f"Historical options data for {symbol}"
             if date:
                 options_text += f" on {date}"
@@ -428,6 +601,121 @@ async def handle_call_tool(
             data_text = f"Monthly cryptocurrency time series for {symbol} in {market}:\n\n{formatted_data}"
 
             return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-earnings-calendar":
+        symbol = arguments.get("symbol")
+        horizon = arguments.get("horizon", "12month")
+        limit = arguments.get("limit", 100)
+        sort_by = arguments.get("sort_by", "reportDate")
+        sort_order = arguments.get("sort_order", "desc")
+        
+        async with httpx.AsyncClient() as client:
+            params = {"horizon": horizon}
+            if symbol:
+                params["symbol"] = symbol.upper()
+                
+            earnings_data = await make_alpha_request(
+                client,
+                "EARNINGS_CALENDAR",
+                None,
+                params
+            )
+
+            if isinstance(earnings_data, str):
+                return [types.TextContent(type="text", text=f"Error: {earnings_data}")]
+
+            formatted_earnings = format_earnings_calendar(earnings_data, limit, sort_by, sort_order)
+            earnings_text = f"Earnings calendar"
+            if symbol:
+                earnings_text += f" for {symbol.upper()}"
+            if horizon:
+                earnings_text += f" ({horizon})"
+            earnings_text += f":\n\n{formatted_earnings}"
+
+            return [types.TextContent(type="text", text=earnings_text)]
+            
+    elif name == "get-historical-earnings":
+        symbol = arguments.get("symbol")
+        limit_annual = arguments.get("limit_annual", 5)
+        limit_quarterly = arguments.get("limit_quarterly", 8)
+        
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            earnings_data = await make_alpha_request(
+                client,
+                "EARNINGS",
+                symbol
+            )
+
+            if isinstance(earnings_data, str):
+                return [types.TextContent(type="text", text=f"Error: {earnings_data}")]
+
+            formatted_earnings = format_historical_earnings(earnings_data, limit_annual, limit_quarterly)
+            earnings_text = f"Historical earnings for {symbol}:\n\n{formatted_earnings}"
+
+            return [types.TextContent(type="text", text=earnings_text)]
+            
+    elif name == "get-realtime-options":
+        symbol = arguments.get("symbol")
+        require_greeks = arguments.get("require_greeks", False)
+        contract = arguments.get("contract")
+        datatype = arguments.get("datatype", "json")
+        
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            params = {}
+            if require_greeks:
+                params["require_greeks"] = "true"
+            if contract:
+                params["contract"] = contract
+            if datatype:
+                params["datatype"] = datatype
+
+            options_data = await make_alpha_request(
+                client,
+                "REALTIME_OPTIONS",
+                symbol,
+                params
+            )
+
+            if isinstance(options_data, str):
+                return [types.TextContent(type="text", text=f"Error: {options_data}")]
+
+            formatted_options = format_realtime_options(options_data)
+            options_text = f"Realtime options data for {symbol}:\n\n{formatted_options}"
+
+            return [types.TextContent(type="text", text=options_text)]
+            
+    elif name == "get-etf-profile":
+        symbol = arguments.get("symbol")
+        
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            etf_data = await make_alpha_request(
+                client,
+                "ETF_PROFILE",
+                symbol
+            )
+
+            if isinstance(etf_data, str):
+                return [types.TextContent(type="text", text=f"Error: {etf_data}")]
+
+            formatted_etf = format_etf_profile(etf_data)
+            etf_text = f"ETF profile for {symbol}:\n\n{formatted_etf}"
+
+            return [types.TextContent(type="text", text=etf_text)]
     else:
         return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 

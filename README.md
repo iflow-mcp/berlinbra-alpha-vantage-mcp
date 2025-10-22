@@ -11,7 +11,11 @@ A Model Context Protocol (MCP) server that provides real-time access to financia
 - Detailed company information including sector, industry, and market cap
 - Real-time cryptocurrency exchange rates with bid/ask prices
 - Daily, weekly, and monthly cryptocurrency time series data
+- Real-time options chain data with Greeks and implied volatility
 - Historical options chain data with advanced filtering and sorting
+- Comprehensive ETF profile data with holdings, sector allocation, and key metrics
+- Upcoming earnings calendar with customizable time horizons
+- Historical earnings data with annual and quarterly reports
 - Built-in error handling and rate limit management
 
 ## Installation
@@ -110,15 +114,19 @@ with inspector
 
 ## Available Tools
 
-The server implements eight tools:
+The server implements twelve tools:
 - `get-stock-quote`: Get the latest stock quote for a specific company
 - `get-company-info`: Get stock-related information for a specific company
 - `get-crypto-exchange-rate`: Get current cryptocurrency exchange rates
 - `get-time-series`: Get historical daily price data for a stock
-- `get-historical-options`: Get historical options chain data with sorting capabilities
+- `get-realtime-options`: Get real-time options chain data with Greeks and implied volatility
+- `get-historical-options`: Get historical options chain data with advanced filtering and sorting capabilities
+- `get-etf-profile`: Get comprehensive ETF profile information including holdings and sector allocation
 - `get-crypto-daily`: Get daily time series data for a cryptocurrency
 - `get-crypto-weekly`: Get weekly time series data for a cryptocurrency
 - `get-crypto-monthly`: Get monthly time series data for a cryptocurrency
+- `get-earnings-calendar`: Get upcoming earnings calendar data for companies
+- `get-historical-earnings`: Get historical earnings data for a specific company
 
 ### get-stock-quote
 
@@ -203,7 +211,7 @@ Ask Price: 43522.00000
 
 ### get-time-series
 
-Retrieves daily time series (OHLCV) data.
+Retrieves daily time series (OHLCV) data with optional date filtering.
 
 **Input Schema:**
 ```json
@@ -214,14 +222,31 @@ Retrieves daily time series (OHLCV) data.
     },
     "outputsize": {
         "type": "string",
-        "description": "compact (latest 100 data points) or full (up to 20 years of data)",
+        "description": "compact (latest 100 data points) or full (up to 20 years of data). When start_date or end_date is specified, defaults to 'full'",
         "default": "compact"
+    },
+    "start_date": {
+        "type": "string",
+        "description": "Optional: Start date in YYYY-MM-DD format for filtering results",
+        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+    },
+    "end_date": {
+        "type": "string",
+        "description": "Optional: End date in YYYY-MM-DD format for filtering results",
+        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+    },
+    "limit": {
+        "type": "integer",
+        "description": "Optional: Number of data points to return when no date filtering is applied (default: 5)",
+        "default": 5,
+        "minimum": 1
     }
 }
 ```
-**Example Response:**
+**Example Response (Recent Data):**
 ```
 Time Series Data for AAPL (Last Refreshed: 2024-12-17 16:00:00):
+(Showing 5 most recent data points)
 
 Date: 2024-12-16
 Open: $195.09
@@ -229,11 +254,109 @@ High: $197.68
 Low: $194.83
 Close: $197.57
 Volume: 55,751,011
+---
+Date: 2024-12-13
+Open: $194.50
+High: $196.25
+Low: $193.80
+Close: $195.12
+Volume: 48,320,567
+---
 ```
+
+**Example Response (Date Range Filtering):**
+```
+Time Series Data for AAPL (Last Refreshed: 2024-12-17 16:00:00):
+Date Range: 2024-12-01 to 2024-12-07 (5 data points)
+
+Date: 2024-12-06
+Open: $191.25
+High: $193.80
+Low: $190.55
+Close: $192.90
+Volume: 52,145,890
+---
+Date: 2024-12-05
+Open: $189.75
+High: $192.40
+Low: $188.90
+Close: $191.30
+Volume: 47,892,345
+---
+```
+
+### get-realtime-options
+
+Retrieves real-time options chain data for a stock with optional Greeks calculation and contract filtering.
+
+**⚠️ PREMIUM SUBSCRIPTION REQUIRED**: This endpoint requires Alpha Vantage Premium with either the 600 requests/minute or 1200 requests/minute plan. The standard 75 requests/minute plan and free accounts will receive placeholder/demo data instead of real market data. For most use cases, consider using `get-historical-options` which works with all API key tiers.
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Stock symbol (e.g., AAPL, MSFT)"
+    },
+    "require_greeks": {
+        "type": "boolean",
+        "description": "Optional: Enable Greeks and implied volatility calculation (default: false)",
+        "default": false
+    },
+    "contract": {
+        "type": "string",
+        "description": "Optional: Specific options contract ID to retrieve"
+    },
+    "datatype": {
+        "type": "string",
+        "description": "Optional: Response format (json or csv, default: json)",
+        "enum": ["json", "csv"],
+        "default": "json"
+    }
+}
+```
+
+**Example Response:**
+```
+Realtime Options Data for AAPL
+Last Updated: 2025-01-21 16:00:00
+
+=== Expiration: 2025-01-24 ===
+
+Strike: $220.0 (CALL)
+Last: $5.25
+Bid: $5.10
+Ask: $5.30
+Volume: 1250
+Open Interest: 8420
+IV: 0.28
+Delta: 0.65
+Gamma: 0.02
+Theta: -0.15
+Vega: 0.45
+Rho: 0.12
+---
+
+Strike: $220.0 (PUT)
+Last: $1.85
+Bid: $1.80
+Ask: $1.90
+Volume: 820
+Open Interest: 5240
+IV: 0.25
+Delta: -0.35
+Gamma: 0.02
+Theta: -0.12
+Vega: 0.42
+Rho: -0.08
+---
+```
+
+**Note**: The above example shows real market data which is only available with Alpha Vantage Premium 600+ requests/minute plans. Users with free accounts or 75 requests/minute plans will see placeholder data (symbols like "XXYYZZ", dates like "2099-99-99") and should use `get-historical-options` instead.
 
 ### get-historical-options
 
-Retrieves historical options chain data with advanced sorting and filtering capabilities.
+Retrieves historical options chain data with advanced filtering and sorting capabilities to find specific contracts.
 
 **Input Schema:**
 ```json
@@ -247,9 +370,33 @@ Retrieves historical options chain data with advanced sorting and filtering capa
         "description": "Optional: Trading date in YYYY-MM-DD format (defaults to previous trading day, must be after 2008-01-01)",
         "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
     },
+    "expiry_date": {
+        "type": "string",
+        "description": "Optional: Filter by expiration date in YYYY-MM-DD format",
+        "pattern": "^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$"
+    },
+    "min_strike": {
+        "type": "number",
+        "description": "Optional: Minimum strike price filter (e.g., 100.00)",
+        "minimum": 0
+    },
+    "max_strike": {
+        "type": "number",
+        "description": "Optional: Maximum strike price filter (e.g., 200.00)",
+        "minimum": 0
+    },
+    "contract_id": {
+        "type": "string",
+        "description": "Optional: Filter by specific contract ID (e.g., MSTR260116C00000500)"
+    },
+    "contract_type": {
+        "type": "string",
+        "description": "Optional: Filter by contract type (call or put)",
+        "enum": ["call", "put", "C", "P"]
+    },
     "limit": {
         "type": "integer",
-        "description": "Optional: Number of contracts to return (default: 10, use -1 for all contracts)",
+        "description": "Optional: Number of contracts to return after filtering (default: 10, use -1 for all contracts)",
         "default": 10,
         "minimum": -1
     },
@@ -268,13 +415,17 @@ Retrieves historical options chain data with advanced sorting and filtering capa
 }
 ```
 
-**Example Response:**
+**Example Response (Basic):**
 ```
 Historical Options Data for AAPL (2024-02-20):
+Status: success
+Found 156 contracts, sorted by: strike (asc)
 
-Contract 1:
-Strike: $190.00
+Contract Details:
+Contract ID: AAPL240315C00190000
 Expiration: 2024-03-15
+Strike: $190.00
+Type: call
 Last: $8.45
 Bid: $8.40
 Ask: $8.50
@@ -287,9 +438,84 @@ Greeks:
   Theta: -0.15
   Vega: 0.30
   Rho: 0.25
+---
+```
 
-Contract 2:
-...
+**Example Response (Filtered):**
+```
+Historical Options Data for MSTR (2024-02-20):
+Status: success
+Filters: Expiry: 2026-01-16, Strike: min $400 - max $600, Type: call
+Found 3 contracts, sorted by: strike (asc)
+
+Contract Details:
+Contract ID: MSTR260116C00000500
+Expiration: 2026-01-16
+Strike: $500.00
+Type: call
+Last: $125.30
+Bid: $124.50
+Ask: $126.10
+Volume: 89
+Open Interest: 1234
+---
+```
+
+### get-etf-profile
+
+Retrieves comprehensive ETF profile information including basic metrics, sector allocation, and top holdings.
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "ETF symbol (e.g., QQQ, SPY, VTI)"
+    }
+}
+```
+
+**Example Response:**
+```
+ETF profile for QQQ:
+
+ETF Profile
+
+Basic Information:
+Net Assets: $352,700,000,000
+Net Expense Ratio: 0.200%
+Portfolio Turnover: 8.0%
+Dividend Yield: 0.50%
+Inception Date: 1999-03-10
+Leveraged: NO
+
+Sector Allocation:
+INFORMATION TECHNOLOGY: 51.9%
+COMMUNICATION SERVICES: 15.4%
+CONSUMER DISCRETIONARY: 12.2%
+CONSUMER STAPLES: 4.8%
+HEALTHCARE: 4.5%
+INDUSTRIALS: 4.4%
+UTILITIES: 1.4%
+MATERIALS: 1.3%
+ENERGY: 0.5%
+FINANCIALS: 0.4%
+
+Top Holdings:
+ 1. NVDA - NVIDIA CORP: 9.80%
+ 2. MSFT - MICROSOFT CORP: 8.85%
+ 3. AAPL - APPLE INC: 7.35%
+ 4. AMZN - AMAZON.COM INC: 5.65%
+ 5. AVGO - BROADCOM INC: 5.14%
+ 6. META - META PLATFORMS INC CLASS A: 3.63%
+ 7. NFLX - NETFLIX INC: 3.10%
+ 8. TSLA - TESLA INC: 2.66%
+ 9. GOOGL - ALPHABET INC CLASS A: 2.49%
+10. COST - COSTCO WHOLESALE CORP: 2.49%
+
+... and 92 more holdings
+
+Total Holdings: 102
 ```
 
 ### get-crypto-daily
@@ -418,6 +644,150 @@ High: 180.00000000 USD
 Low: 112.00000000 USD
 Close: 124.54000000 USD
 Volume: 42360395.75443056
+---
+```
+
+### get-earnings-calendar
+
+Retrieves upcoming earnings calendar data for companies with customizable time horizons and sorting capabilities.
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Optional: Stock symbol to filter earnings for a specific company (e.g., AAPL, MSFT, IBM)"
+    },
+    "horizon": {
+        "type": "string",
+        "description": "Optional: Time horizon for earnings data (3month, 6month, or 12month)",
+        "enum": ["3month", "6month", "12month"],
+        "default": "12month"
+    },
+    "limit": {
+        "type": "integer",
+        "description": "Optional: Number of earnings entries to return (default: 100)",
+        "default": 100,
+        "minimum": 1
+    },
+    "sort_by": {
+        "type": "string",
+        "description": "Optional: Field to sort by",
+        "enum": ["reportDate", "symbol", "name", "fiscalDateEnding", "estimate"],
+        "default": "reportDate"
+    },
+    "sort_order": {
+        "type": "string",
+        "description": "Optional: Sort order",
+        "enum": ["asc", "desc"],
+        "default": "desc"
+    }
+}
+```
+
+**Example Response (Default - Latest First):**
+```
+Earnings calendar (12month):
+
+Upcoming Earnings Calendar (Sorted by reportDate desc):
+
+Company: NVDA - NVIDIA Corp
+Report Date: 2025-08-15
+Fiscal Date End: 2025-07-31
+Estimate: $4.25 USD
+---
+Company: AAPL - Apple Inc
+Report Date: 2025-07-30
+Fiscal Date End: 2025-06-30
+Estimate: $1.85 USD
+---
+Company: MSTR - MicroStrategy Inc
+Report Date: 2025-05-08
+Fiscal Date End: 2025-03-31
+Estimate: $1.30 USD
+---
+Company: MSTR - MicroStrategy Inc
+Report Date: 2025-02-06
+Fiscal Date End: 2024-12-31
+Estimate: $1.25 USD
+---
+```
+
+**Example Response (Sorted by Symbol):**
+```
+Earnings calendar (12month):
+
+Upcoming Earnings Calendar (Sorted by symbol asc):
+
+Company: AAPL - Apple Inc
+Report Date: 2025-07-30
+Fiscal Date End: 2025-06-30
+Estimate: $1.85 USD
+---
+Company: GOOGL - Alphabet Inc
+Report Date: 2025-04-25
+Fiscal Date End: 2025-03-31
+Estimate: $2.15 USD
+---
+Company: MSTR - MicroStrategy Inc
+Report Date: 2025-02-06
+Fiscal Date End: 2024-12-31
+Estimate: $1.25 USD
+---
+```
+
+### get-historical-earnings
+
+Retrieves historical earnings data for a specific company, including both annual and quarterly reports.
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Stock symbol for the company (e.g., AAPL, MSFT, IBM)"
+    },
+    "limit_annual": {
+        "type": "integer",
+        "description": "Optional: Number of annual earnings to return (default: 5)",
+        "default": 5,
+        "minimum": 1
+    },
+    "limit_quarterly": {
+        "type": "integer",
+        "description": "Optional: Number of quarterly earnings to return (default: 8)",
+        "default": 8,
+        "minimum": 1
+    }
+}
+```
+
+**Example Response:**
+```
+Historical Earnings for MSTR:
+
+=== ANNUAL EARNINGS ===
+Fiscal Year End: 2023-12-31
+Reported EPS: $5.40
+---
+Fiscal Year End: 2022-12-31
+Reported EPS: $-9.98
+---
+
+=== QUARTERLY EARNINGS ===
+Fiscal Quarter End: 2024-09-30
+Reported Date: 2024-10-30
+Reported EPS: $1.10
+Estimated EPS: $0.98
+Surprise: +$0.12 (+12.24%)
+Report Time: post-market
+---
+Fiscal Quarter End: 2024-06-30
+Reported Date: 2024-08-01
+Reported EPS: $1.05
+Estimated EPS: $0.92
+Surprise: +$0.13 (+14.13%)
+Report Time: post-market
 ---
 ```
 
